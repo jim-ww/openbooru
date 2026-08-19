@@ -8,6 +8,8 @@
 	import { browseNetworkPage, type BrowseCursor } from '$lib/nostr/browse';
 	import { recordSeenTags } from '$lib/tags';
 	import SeoHead from '$lib/components/SeoHead.svelte';
+	import { resolve } from '$app/paths';
+	import { isOfflineMode } from '$lib/state/preferences.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -55,6 +57,12 @@
 <div class="mx-auto max-w-7xl px-4 py-6">
 	{#if !loaded}
 		<PostGridSkeleton />
+	{:else if isOfflineMode()}
+		<p class="py-16 text-center text-sm text-muted-foreground">
+			No relays are configured, so openbooru has no network to reach. <a href={resolve('/settings')} class="underline"
+				>Add a relay in Settings</a
+			> to see posts.
+		</p>
 	{:else if loadError}
 		<p class="py-16 text-center text-sm text-destructive">Failed to load the feed: {loadError}</p>
 	{:else}
