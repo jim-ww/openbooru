@@ -92,6 +92,7 @@ export function blobToPostImage(blob: BlossomBlob): PostImage {
 	return {
 		url: blob.url,
 		sha256: blob.sha256,
+		size: blob.size,
 		...(blob.type ? { mime: blob.type } : {})
 	};
 }

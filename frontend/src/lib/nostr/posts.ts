@@ -16,6 +16,7 @@ function buildImetaTag(image: PostImage): string[] {
 	if (image.mime) tag.push(`m ${image.mime}`);
 	if (image.sha256) tag.push(`x ${image.sha256}`);
 	if (image.dim) tag.push(`dim ${image.dim}`);
+	if (image.size !== undefined) tag.push(`size ${image.size}`);
 	for (const fallback of image.fallbackUrls ?? []) tag.push(`fallback ${fallback}`);
 	return tag;
 }
@@ -25,6 +26,7 @@ function parseImetaTag(tag: string[]): PostImage | null {
 	let mime: string | undefined;
 	let sha256: string | undefined;
 	let dim: string | undefined;
+	let size: number | undefined;
 	const fallbackUrls: string[] = [];
 	for (const entry of tag.slice(1)) {
 		const spaceIndex = entry.indexOf(' ');
@@ -35,6 +37,7 @@ function parseImetaTag(tag: string[]): PostImage | null {
 		else if (key === 'm') mime = value;
 		else if (key === 'x') sha256 = value;
 		else if (key === 'dim') dim = value;
+		else if (key === 'size') size = Number(value) || undefined;
 		else if (key === 'fallback') fallbackUrls.push(value);
 	}
 	if (!url) return null;
@@ -43,6 +46,7 @@ function parseImetaTag(tag: string[]): PostImage | null {
 		...(mime ? { mime } : {}),
 		...(sha256 ? { sha256 } : {}),
 		...(dim ? { dim } : {}),
+		...(size !== undefined ? { size } : {}),
 		...(fallbackUrls.length ? { fallbackUrls } : {})
 	};
 }

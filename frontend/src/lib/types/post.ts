@@ -11,6 +11,7 @@ export interface PostImage {
 	sha256?: string;
 	mime?: string;
 	dim?: string; // "WIDTHxHEIGHT"
+	size?: number; // bytes
 	fallbackUrls?: string[];
 }
 

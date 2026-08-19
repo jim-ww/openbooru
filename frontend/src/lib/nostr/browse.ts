@@ -1,4 +1,4 @@
-import { nip19, type Event as NostrEvent } from 'nostr-tools';
+import type { Event as NostrEvent } from 'nostr-tools';
 import type { Post, PostId } from '$lib/types';
 import { getActiveRelays, getPreferences } from '$lib/state/preferences.svelte';
 import { eventToPost, listPostsByAuthor } from './posts';
@@ -6,7 +6,7 @@ import { queryEvents, streamEvents } from './event';
 import { POST_KIND } from './kinds';
 import { getScoresForPosts } from './reactions';
 import { loadPostDeleteRequestedMap } from '$lib/db/deletedPosts';
-import { getUsernameClaim } from './usernames';
+import { resolveAuthorIdentifier } from './usernames';
 import { parseSearchQuery } from '$lib/search/parseQuery';
 
 /** Shared by every browse/search entry point below, so "tombstoned,
@@ -54,27 +54,12 @@ export async function searchByTags(tags: string[]): Promise<Post[]> {
 	return parseAndFilter([...merged.values()]);
 }
 
-/** Decodes an `npub1...` (NIP-19 bech32) identifier to a hex pubkey — the
- *  format most Nostr clients actually surface for copy/paste, as opposed to
- *  raw hex. Returns the input unchanged if it isn't an npub. */
-function decodeIfNpub(identifier: string): string {
-	if (!identifier.startsWith('npub1')) return identifier;
-	try {
-		const decoded = nip19.decode(identifier);
-		return decoded.type === 'npub' ? decoded.data : identifier;
-	} catch {
-		return identifier;
-	}
-}
-
 /** Fetches published posts authored by `identifier`, which may be a claimed
  *  username, a raw hex author pubkey, or an `npub1...`-encoded one — the
  *  "@name" / "@pubkey" / "@npub" search syntax. */
 export async function browseByAuthor(identifier: string): Promise<Post[]> {
-	const trimmed = identifier.replace(/^@/, '').trim();
-	if (!trimmed) return [];
-	const claim = await getUsernameClaim(trimmed);
-	const authorPub = claim.ok && !claim.doc.deleted ? claim.doc.authorPub : decodeIfNpub(trimmed);
+	if (!identifier.trim()) return [];
+	const authorPub = await resolveAuthorIdentifier(identifier);
 	const posts = await listPostsByAuthor(authorPub);
 	const { blockedTags, blockedAuthors, visibleRatings } = getPreferences();
 	return posts.filter((p) => postPassesFilters(p, blockedTags, blockedAuthors, visibleRatings));

@@ -1,4 +1,4 @@
-import type { Event as NostrEvent, EventTemplate } from 'nostr-tools';
+import { nip19, type Event as NostrEvent, type EventTemplate } from 'nostr-tools';
 import type { Keyring, PubKey, Verified } from '$lib/types';
 import { publishEvent, queryEvents } from './event';
 import { USERNAME_CLAIM_KIND } from './kinds';
@@ -80,6 +80,27 @@ export async function getUsernameClaim(username: string): Promise<Verified<Usern
 
 	const mostRecentlyReleased = [...claims].sort((a, b) => b.claimed_at - a.claimed_at)[0];
 	return { ok: true, doc: mostRecentlyReleased };
+}
+
+/** Decodes an `npub1...` (NIP-19 bech32) identifier to a hex pubkey — the
+ *  format most Nostr clients actually surface for copy/paste, as opposed to
+ *  raw hex. Returns the input unchanged if it isn't an npub. */
+function decodeIfNpub(identifier: string): string {
+	if (!identifier.startsWith('npub1')) return identifier;
+	try {
+		const decoded = nip19.decode(identifier);
+		return decoded.type === 'npub' ? decoded.data : identifier;
+	} catch {
+		return identifier;
+	}
+}
+
+/** Resolves the "@name" / "@pubkey" / "@npub" identifier syntax used across
+ *  Browse/Search/profile routes to a raw hex pubkey. */
+export async function resolveAuthorIdentifier(identifier: string): Promise<string> {
+	const trimmed = identifier.replace(/^@/, '').trim();
+	const claim = await getUsernameClaim(trimmed);
+	return claim.ok && !claim.doc.deleted ? claim.doc.authorPub : decodeIfNpub(trimmed);
 }
 
 /** Claims `username` for `keyring`'s author. Throws if it's already validly
