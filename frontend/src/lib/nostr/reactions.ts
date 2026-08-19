@@ -41,14 +41,23 @@ function targetTags(target: LikeTarget): string[][] {
 	];
 }
 
-/** Returns the current user's own vote event on `target`, if any. */
+/** Returns the current user's own vote event on `target`, if any. Picks the
+ *  most recently published match rather than just the first one returned —
+ *  a NIP-09 delete request is only best-effort, so an older superseded vote
+ *  can still be sitting in a relay's store alongside the new one, and
+ *  relay result order isn't guaranteed to reflect publish order. */
 export async function findOwnVote(
 	target: LikeTarget,
 	pubkey: PubKey
 ): Promise<{ id: string; direction: VoteDirection } | null> {
 	const events = await queryEvents({ kinds: [REACTION_KIND], '#e': [target.id], authors: [pubkey] }, getActiveRelays());
-	const vote = events.find((e) => e.content === '+' || e.content === '-');
-	return vote ? { id: vote.id, direction: vote.content as VoteDirection } : null;
+	const votes = events.filter((e) => e.content === '+' || e.content === '-');
+	if (votes.length === 0) return null;
+	// >= (not >) so that on a same-second tie, the later entry in relay
+	// result order — which for a same-session vote switch is the more
+	// recently published one — wins over the first.
+	const latest = votes.reduce((a, b) => (b.created_at >= a.created_at ? b : a));
+	return { id: latest.id, direction: latest.content as VoteDirection };
 }
 
 async function publishDeleteRequest(eventId: string, keyring: import('$lib/types').Keyring): Promise<void> {
