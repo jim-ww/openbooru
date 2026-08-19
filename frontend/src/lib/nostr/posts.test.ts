@@ -1,28 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { __setKeyringForTests, __setRegisteredForTests } from '$lib/state/auth.svelte';
 import { generateKeyring } from './keys';
 import { __setPoolForTests } from './pool';
 import { createFakePool } from './testUtils';
-import { publishPost, getPost, getPosts, listPostsByAuthor, deletePost, eventToPost } from './posts';
+import { publishPost, getPost, listPostsByAuthor, listPostIdsByAuthor, deletePost, undeletePost, eventToPost } from './posts';
 import { POST_KIND } from './kinds';
-
-// $lib/db/deletedPosts wraps idb-keyval, which needs a real IndexedDB
-// unavailable under plain Node/vitest — swap it for an in-memory map, same
-// pattern as db/deletedComments.
-let deleteRequests: Record<string, number> = {};
-vi.mock('$lib/db/deletedPosts', () => ({
-	loadPostDeleteRequestedMap: async () => deleteRequests,
-	markPostDeleteRequested: async (id: string) => {
-		const timestamp = Date.now();
-		deleteRequests = { ...deleteRequests, [id]: timestamp };
-		return timestamp;
-	}
-}));
 
 beforeEach(() => {
 	__setPoolForTests(createFakePool().pool);
 	__setKeyringForTests(generateKeyring());
-	deleteRequests = {};
 });
 
 const oneImage = [{ url: 'https://blossom.example/abc.jpg', sha256: 'abc', mime: 'image/jpeg' }];
@@ -32,7 +18,10 @@ describe('publishPost / getPost', () => {
 		const post = await publishPost({ content: 'hello', images: oneImage, tags: ['outdoors'], rating: 'general' });
 
 		const fetched = await getPost(post.id);
-		expect(fetched).toEqual({ ok: true, doc: expect.objectContaining({ content: 'hello', tags: ['outdoors'] }) });
+		expect(fetched).toEqual({
+			ok: true,
+			doc: expect.objectContaining({ content: 'hello', tags: ['outdoors'], version: 1 })
+		});
 	});
 
 	it('rejects publishing with no images', async () => {
@@ -67,7 +56,8 @@ describe('publishPost / getPost', () => {
 	});
 
 	it('returns not-ok for a nonexistent post id', async () => {
-		expect(await getPost('deadbeef')).toEqual({ ok: false, reason: 'invalid_schema' });
+		const keyring = generateKeyring();
+		expect(await getPost(`${keyring.publicKey}:${crypto.randomUUID()}`)).toEqual({ ok: false, reason: 'invalid_schema' });
 	});
 });
 
@@ -77,30 +67,70 @@ describe('eventToPost', () => {
 			id: 'x',
 			pubkey: 'y',
 			kind: POST_KIND,
-			tags: [['t', 'no-image-here']],
-			content: '',
+			tags: [
+				['d', 'some-uuid'],
+				['published_at', '0']
+			],
+			content: JSON.stringify({ content: '', version: 1, deleted: false, deleted_at: null }),
 			created_at: 0,
 			sig: ''
 		};
-		expect(eventToPost(fakeEvent as never, {})).toBeNull();
+		expect(eventToPost(fakeEvent as never)).toBeNull();
+	});
+
+	it('drops an event missing the d/published_at tags', () => {
+		const fakeEvent = {
+			id: 'x',
+			pubkey: 'y',
+			kind: POST_KIND,
+			tags: [['imeta', 'url https://a.example/1.jpg']],
+			content: JSON.stringify({ content: '', version: 1, deleted: false, deleted_at: null }),
+			created_at: 0,
+			sig: ''
+		};
+		expect(eventToPost(fakeEvent as never)).toBeNull();
 	});
 });
 
-describe('getPosts', () => {
-	it('batches a lookup for multiple ids in one call', async () => {
-		const a = await publishPost({ content: 'a', images: oneImage, tags: [], rating: 'general' });
-		const b = await publishPost({ content: 'b', images: oneImage, tags: [], rating: 'general' });
+describe('editing a post', () => {
+	it('publishes a new revision under the same id, incrementing version', async () => {
+		const created = await publishPost({ content: 'v1', images: oneImage, tags: ['a'], rating: 'general' });
+		expect(created.version).toBe(1);
 
-		const found = await getPosts([a.id, b.id]);
-		expect(found.map((p) => p.id).sort()).toEqual([a.id, b.id].sort());
+		const edited = await publishPost({ id: created.id, content: 'v2', images: oneImage, tags: ['a', 'b'], rating: 'sensitive' });
+		expect(edited.id).toBe(created.id);
+		expect(edited.version).toBe(2);
+		expect(edited.content).toBe('v2');
+		expect(edited.tags).toEqual(['a', 'b']);
+		expect(edited.rating).toBe('sensitive');
+
+		const fetched = await getPost(created.id);
+		expect(fetched.ok && fetched.doc.content).toBe('v2');
 	});
 
-	it('returns an empty array for an empty id list without querying', async () => {
-		expect(await getPosts([])).toEqual([]);
+	it('preserves the original published_at across an edit', async () => {
+		const created = await publishPost({ content: 'v1', images: oneImage, tags: [], rating: 'general' });
+		const edited = await publishPost({ id: created.id, content: 'v2', images: oneImage, tags: [], rating: 'general' });
+		expect(edited.created_at).toBe(created.created_at);
+	});
+
+	it('rejects editing from a non-author', async () => {
+		const created = await publishPost({ content: '', images: oneImage, tags: [], rating: 'general' });
+		__setKeyringForTests(generateKeyring());
+		await expect(publishPost({ id: created.id, content: 'hijacked', images: oneImage, tags: [], rating: 'general' })).rejects.toThrow(
+			'Only the author can edit this post.'
+		);
+	});
+
+	it('rejects editing a post that does not exist', async () => {
+		const keyring = generateKeyring();
+		await expect(
+			publishPost({ id: `${keyring.publicKey}:${crypto.randomUUID()}`, content: '', images: oneImage, tags: [], rating: 'general' })
+		).rejects.toThrow('Post not found.');
 	});
 });
 
-describe('listPostsByAuthor', () => {
+describe('listPostIdsByAuthor / listPostsByAuthor', () => {
 	it("lists only the given author's posts", async () => {
 		const keyring = generateKeyring();
 		__setKeyringForTests(keyring);
@@ -110,15 +140,24 @@ describe('listPostsByAuthor', () => {
 		__setKeyringForTests(generateKeyring());
 		await publishPost({ content: 'someone else', images: oneImage, tags: [], rating: 'general' });
 
-		const posts = await listPostsByAuthor(keyring.publicKey);
-		expect(posts.map((p) => p.id).sort()).toEqual([first.id, second.id].sort());
+		const ids = await listPostIdsByAuthor(keyring.publicKey);
+		expect(ids.sort()).toEqual([first.id, second.id].sort());
+	});
+
+	it('lists only one id per post even after it has been edited', async () => {
+		const keyring = generateKeyring();
+		__setKeyringForTests(keyring);
+		const created = await publishPost({ content: 'v1', images: oneImage, tags: [], rating: 'general' });
+		await publishPost({ id: created.id, content: 'v2', images: oneImage, tags: [], rating: 'general' });
+
+		expect(await listPostIdsByAuthor(keyring.publicKey)).toEqual([created.id]);
 	});
 
 	it(
-		'sorts newest first',
+		'sorts posts newest published first',
 		async () => {
-			// created_at is second-resolution, so the two publishes need to land
-			// in different seconds for sort order to be observable.
+			// published_at is second-resolution, so the two publishes need to
+			// land in different seconds for sort order to be observable.
 			const keyring = generateKeyring();
 			__setKeyringForTests(keyring);
 			const older = await publishPost({ content: 'older', images: oneImage, tags: [], rating: 'general' });
@@ -132,14 +171,14 @@ describe('listPostsByAuthor', () => {
 	);
 });
 
-describe('deletePost', () => {
+describe('deletePost / undeletePost', () => {
 	it('rejects deletion from a non-author', async () => {
 		const post = await publishPost({ content: '', images: oneImage, tags: [], rating: 'general' });
 		__setKeyringForTests(generateKeyring());
 		await expect(deletePost(post.id)).rejects.toThrow('Only the author can delete this post.');
 	});
 
-	it('marks the post deleted locally and still resolves it via getPost', async () => {
+	it('marks the post deleted and still resolves it via getPost', async () => {
 		const post = await publishPost({ content: '', images: oneImage, tags: [], rating: 'general' });
 		await deletePost(post.id);
 
@@ -147,5 +186,25 @@ describe('deletePost', () => {
 		expect(fetched.ok).toBe(true);
 		expect(fetched.ok && fetched.doc.deleted).toBe(true);
 		expect(fetched.ok && fetched.doc.deleted_at).not.toBeNull();
+	});
+
+	it('restores a deleted post via undeletePost, same id', async () => {
+		const post = await publishPost({ content: 'still here', images: oneImage, tags: [], rating: 'general' });
+		const deleted = await deletePost(post.id);
+		const restored = await undeletePost(deleted);
+
+		expect(restored.id).toBe(post.id);
+		expect(restored.deleted).toBe(false);
+		expect(restored.content).toBe('still here');
+
+		const fetched = await getPost(post.id);
+		expect(fetched.ok && fetched.doc.deleted).toBe(false);
+	});
+
+	it('rejects restoring from a non-author', async () => {
+		const post = await publishPost({ content: '', images: oneImage, tags: [], rating: 'general' });
+		const deleted = await deletePost(post.id);
+		__setKeyringForTests(generateKeyring());
+		await expect(undeletePost(deleted)).rejects.toThrow('Only the author can restore this post.');
 	});
 });

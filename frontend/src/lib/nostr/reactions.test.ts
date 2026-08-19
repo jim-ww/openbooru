@@ -1,18 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { __setKeyringForTests } from '$lib/state/auth.svelte';
 import { generateKeyring } from './keys';
 import { __setPoolForTests } from './pool';
 import { createFakePool } from './testUtils';
 import { publishPost } from './posts';
 import { vote, findOwnVote, getScoresForPosts, getScore, getOwnVotesForPosts, type LikeTarget } from './reactions';
-
-// $lib/db/deletedPosts wraps idb-keyval, which needs a real IndexedDB
-// unavailable under plain Node/vitest — swap it for a no-op (this file
-// never deletes a post, just needs publishPost's own lookup to not throw).
-vi.mock('$lib/db/deletedPosts', () => ({
-	loadPostDeleteRequestedMap: async () => ({}),
-	markPostDeleteRequested: async () => Date.now()
-}));
 
 beforeEach(() => {
 	__setPoolForTests(createFakePool().pool);
@@ -27,7 +19,7 @@ async function realTarget(): Promise<LikeTarget> {
 	// can land in the same second, so identical content would produce
 	// identical (colliding) ids for what should be two distinct posts.
 	const post = await publishPost({ content: crypto.randomUUID(), images: oneImage, tags: [], rating: 'general' });
-	return { type: 'post', id: post.id, author: post.author };
+	return { type: 'post', id: post.id };
 }
 
 describe('vote / findOwnVote', () => {

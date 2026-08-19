@@ -1,17 +1,15 @@
 <script lang="ts">
 	import type { Comment } from '$lib/types';
-	import type { PostId, PubKey } from '$lib/types';
+	import type { PostId } from '$lib/types';
 	import { postComment, deleteComment } from '$lib/nostr/comments';
+	import { parsePostId } from '$lib/nostr/postId';
 	import { getCurrentUser } from '$lib/state/auth.svelte';
 	import CommentComposer from './CommentComposer.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { toast } from 'svelte-sonner';
 
-	let {
-		comments: initialComments,
-		postId,
-		postAuthor
-	}: { comments: Comment[]; postId: PostId; postAuthor: PubKey } = $props();
+	let { comments: initialComments, postId }: { comments: Comment[]; postId: PostId } = $props();
+	const postAuthor = parsePostId(postId).author;
 
 	let comments = $state([...initialComments]);
 	let replyingTo = $state<string | null>(null);
@@ -24,12 +22,12 @@
 	}
 
 	async function postTop(content: string) {
-		const comment = await postComment(postId, postAuthor, content);
+		const comment = await postComment(postId, content);
 		comments = [...comments, comment];
 	}
 
 	async function postReply(rootId: string, content: string) {
-		const comment = await postComment(postId, postAuthor, content, rootId);
+		const comment = await postComment(postId, content, rootId);
 		comments = [...comments, comment];
 		replyingTo = null;
 	}

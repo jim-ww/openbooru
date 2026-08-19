@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { __setKeyringForTests } from '$lib/state/auth.svelte';
 import { __setPreferencesForTests } from '$lib/state/preferences.svelte';
 import { generateKeyring } from './keys';
@@ -8,24 +8,11 @@ import { deletePost, publishPost } from './posts';
 import { browseByTag, browseNetworkPage, searchByTags, browseByAuthor } from './browse';
 import { publishProfile } from './profile';
 
-// $lib/db/deletedPosts wraps idb-keyval, which needs a real IndexedDB
-// unavailable under plain Node/vitest — swap it for an in-memory map.
-let deleteRequests: Record<string, number> = {};
-vi.mock('$lib/db/deletedPosts', () => ({
-	loadPostDeleteRequestedMap: async () => deleteRequests,
-	markPostDeleteRequested: async (id: string) => {
-		const timestamp = Date.now();
-		deleteRequests = { ...deleteRequests, [id]: timestamp };
-		return timestamp;
-	}
-}));
-
 const oneImage = [{ url: 'https://blossom.example/abc.jpg' }];
 
 beforeEach(() => {
 	__setPoolForTests(createFakePool().pool);
 	__setKeyringForTests(generateKeyring());
-	deleteRequests = {};
 });
 
 async function post(tags: string[], rating: 'general' | 'sensitive' | 'explicit' = 'general') {

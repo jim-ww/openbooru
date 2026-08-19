@@ -4,6 +4,7 @@ import { getKeyring, requireAccount } from '$lib/state/auth.svelte';
 import { loadDeleteRequestedMap, markCommentDeleteRequested } from '$lib/db/deletedComments';
 import { publishEvent, queryEvents } from './event';
 import { COMMENT_KIND, DELETE_REQUEST_KIND, POST_KIND } from './kinds';
+import { postCoordinate, parsePostCoordinate, parsePostId } from './postId';
 import { readRelaysFor, writeRelaysFor } from './relayList';
 import { getActiveRelays } from '$lib/state/preferences.svelte';
 
@@ -17,10 +18,10 @@ import { getActiveRelays } from '$lib/state/preferences.svelte';
 // posted from a commenter's own relay-only setup can be invisible to anyone
 // reading the post from a different (non-overlapping) relay set.
 //
-// Unlike charshare's character (a NIP-33 addressable/replaceable event), a
-// post (kind 20) is a regular, immutable event with no stable coordinate —
-// so NIP-22's root-scope tags here are event-id-based (`E`/`e`), not
-// coordinate-based (`A`/`a`).
+// A post is a NIP-33 addressable/replaceable event (unlike NIP-68's kind
+// 20), so — like charshare's character — it has a stable coordinate that
+// survives every edit. NIP-22's root-scope tags here are coordinate-based
+// (`A`/`a`), not event-id-based, matching that.
 
 function tagValue(tags: string[][], name: string): string | undefined {
 	return tags.find((t) => t[0] === name)?.[1];
@@ -32,23 +33,16 @@ function tagValue(tags: string[][], name: string): string | undefined {
  *  there is no network-level tombstone to read instead. Returns null (never
  *  partially trusted) if the required root-scope tag is missing. */
 function eventToComment(event: NostrEvent, deletedMap: Record<CommentId, number>): Comment | null {
-	const postId = tagValue(event.tags, 'E');
-	if (!postId) return null;
-	// Per NIP-22, a top-level comment's lowercase `e` (parent scope) equals
-	// its uppercase `E` (root scope) — the "parent" of a top-level comment
-	// is the root itself. That's correct at the protocol level, but this
-	// app's own `parent_id: null` is what actually means "top-level" — so
-	// only treat `e` as a real parent when it points somewhere other than
-	// the post itself.
+	const rootCoordinate = tagValue(event.tags, 'A');
+	if (!rootCoordinate) return null;
 	const parentEventId = tagValue(event.tags, 'e');
-	const parentId = parentEventId && parentEventId !== postId ? parentEventId : null;
 	const deletedAt = deletedMap[event.id] ?? null;
 
 	return {
 		id: event.id,
-		post_id: postId,
+		post_id: parsePostCoordinate(rootCoordinate),
 		content: event.content,
-		parent_id: parentId,
+		parent_id: parentEventId ?? null,
 		author: event.pubkey,
 		created_at: event.created_at * 1000,
 		updated_at: event.created_at * 1000,
@@ -72,16 +66,18 @@ export async function getComment(id: CommentId): Promise<Verified<Comment>> {
  *  signature verification or doesn't actually belong to `postId` (never
  *  partially trust).
  *
- *  Filters on the uppercase `E` (root scope) tag, unlike charshare's
- *  coordinate-based equivalent, which could filter on the commonly-indexed
- *  lowercase `a` instead: here the lowercase `e` tag means something
- *  different depending on the comment (it's the post id for a top-level
- *  comment, but the *parent comment's* id for a reply — see postComment),
- *  so it can't double as a "find everything under this post" filter. `E`
- *  is always the post id on every comment in the thread, reply or not. */
-export async function getCommentsForPost(postId: PostId, postAuthor: string): Promise<Comment[]> {
-	const relays = Array.from(new Set([...getActiveRelays(), ...(await readRelaysFor(postAuthor))]));
-	const events = await queryEvents({ kinds: [COMMENT_KIND], '#E': [postId] }, relays);
+ *  Filters on the lowercase `a` tag, not NIP-22's own uppercase `A` (root
+ *  scope) — every comment event carries both (see postComment), but several
+ *  minimal/local relay implementations only maintain query indexes for the
+ *  common lowercase single-letter tags and don't index uncommon uppercase
+ *  ones, silently returning nothing for an `#A` filter even though the
+ *  events are actually stored there. `eventToComment` above still reads the
+ *  real root back off the (uppercase) `A` tag on whatever's returned — this
+ *  only changes what the relay is asked to filter by. */
+export async function getCommentsForPost(postId: PostId): Promise<Comment[]> {
+	const { author } = parsePostId(postId);
+	const relays = Array.from(new Set([...getActiveRelays(), ...(await readRelaysFor(author))]));
+	const events = await queryEvents({ kinds: [COMMENT_KIND], '#a': [postCoordinate(postId)] }, relays);
 	const deletedMap = await loadDeleteRequestedMap();
 	return events
 		.map((e) => eventToComment(e, deletedMap))
@@ -104,7 +100,6 @@ export async function getCommentsAuthoredBy(pubkey: string): Promise<Comment[]> 
 
 export async function postComment(
 	postId: PostId,
-	postAuthor: string,
 	content: string,
 	parentId: CommentId | null = null,
 	// The comment actually being replied to, for the "can't reply to your own
@@ -127,24 +122,24 @@ export async function postComment(
 		}
 	}
 
+	const { author: postAuthor } = parsePostId(postId);
+	const rootCoordinate = postCoordinate(postId);
+
 	// NIP-22: uppercase tags scope the root (the post being commented on);
-	// lowercase tags scope the immediate parent — for a top-level comment
-	// the parent *is* the root, so e/k/p equal E/K/P; for a reply they
-	// point at the parent comment instead. Flattened to one level (parent
-	// always = thread root) to match the app's reply UX. Each of e/k/p is
-	// set exactly once — never both branches — since a reply's lowercase
-	// `e` must point at parentId, not also at postId.
+	// lowercase tags scope the immediate parent. Flattened to one level
+	// (parent always = thread root) to match the app's reply UX.
 	const tags: string[][] = [
-		['E', postId],
+		['A', rootCoordinate],
 		['K', String(POST_KIND)],
-		['P', postAuthor]
+		['P', postAuthor],
+		['a', rootCoordinate]
 	];
 	if (parentId) {
 		const parent = await getComment(parentId);
 		tags.push(['e', parentId], ['k', String(COMMENT_KIND)]);
 		if (parent.ok) tags.push(['p', parent.doc.author]);
 	} else {
-		tags.push(['e', postId], ['k', String(POST_KIND)], ['p', postAuthor]);
+		tags.push(['k', String(POST_KIND)], ['p', postAuthor]);
 	}
 
 	const template: EventTemplate = {

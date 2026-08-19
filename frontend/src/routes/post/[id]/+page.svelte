@@ -9,11 +9,13 @@
 	import CommentThread from '$lib/components/CommentThread.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
-	import { deletePost } from '$lib/nostr/posts';
+	import { deletePost, undeletePost } from '$lib/nostr/posts';
 	import { getCurrentUser } from '$lib/state/auth.svelte';
 	import { relatedTags, recordSeenTags } from '$lib/tags';
 	import { toast } from 'svelte-sonner';
 	import Trash from '@lucide/svelte/icons/trash-2';
+	import Pencil from '@lucide/svelte/icons/pencil';
+	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import type { Comment } from '$lib/types';
 	import type { VoteDirection } from '$lib/nostr/reactions';
 
@@ -72,6 +74,19 @@
 			toast.error(err instanceof Error ? err.message : 'Failed to delete post.');
 		}
 	}
+
+	let restoring = $state(false);
+	async function handleUndelete() {
+		restoring = true;
+		try {
+			post = await undeletePost(post);
+			toast.success('Post restored.');
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to restore post.');
+		} finally {
+			restoring = false;
+		}
+	}
 </script>
 
 <svelte:head><title>Post — openbooru</title></svelte:head>
@@ -101,9 +116,21 @@
 			<p class="text-sm whitespace-pre-wrap">{post.content}</p>
 		{/if}
 
-		<div class="flex items-center gap-3">
+		{#if post.deleted}
+			<div class="flex items-center justify-between rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
+				<span>Deletion requested by the author. Relays that honor it will stop serving this post.</span>
+				{#if post.author === getCurrentUser()}
+					<Button variant="outline" size="sm" onclick={handleUndelete} disabled={restoring} class="shrink-0 gap-1.5">
+						<RotateCcw class="size-3.5" />
+						{restoring ? 'Restoring…' : 'Undo'}
+					</Button>
+				{/if}
+			</div>
+		{/if}
+
+		<div class="flex flex-wrap items-center gap-3">
 			{#if scoreLoaded}
-				<ScoreVote target={{ type: 'post', id: post.id, author: post.author }} {score} {ownVote} />
+				<ScoreVote target={{ type: 'post', id: post.id }} {score} {ownVote} />
 			{:else}
 				<span class="text-sm text-muted-foreground">…</span>
 			{/if}
@@ -111,17 +138,27 @@
 			<a href={resolve('/u/[identifier]', { identifier: post.author })} class="text-sm text-muted-foreground hover:text-foreground">
 				{post.author.slice(0, 8)}…{post.author.slice(-4)}
 			</a>
+			{#if post.version > 1}
+				<span class="text-xs text-muted-foreground">edited</span>
+			{/if}
 			{#if post.author === getCurrentUser()}
-				<Button variant="ghost" size="icon" class="ml-auto text-destructive" onclick={handleDelete} aria-label="Delete post">
-					<Trash class="size-4" />
-				</Button>
+				<div class="ml-auto flex gap-1">
+					<Button href={resolve('/post/[id]/edit', { id: post.id })} variant="ghost" size="icon" aria-label="Edit post">
+						<Pencil class="size-4" />
+					</Button>
+					{#if !post.deleted}
+						<Button variant="ghost" size="icon" class="text-destructive" onclick={handleDelete} aria-label="Delete post">
+							<Trash class="size-4" />
+						</Button>
+					{/if}
+				</div>
 			{/if}
 		</div>
 
 		<Separator />
 
 		{#if comments !== null}
-			<CommentThread {comments} postId={post.id} postAuthor={post.author} />
+			<CommentThread {comments} postId={post.id} />
 		{:else}
 			<p class="text-sm text-muted-foreground">Loading comments…</p>
 		{/if}

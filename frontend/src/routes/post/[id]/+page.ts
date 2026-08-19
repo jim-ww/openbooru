@@ -14,12 +14,12 @@ export const load: PageLoad = async ({ params }) => {
 	if (!result.ok) error(404, 'Post not found');
 	const post = result.doc;
 
-	const target: LikeTarget = { type: 'post', id: post.id, author: post.author };
+	const target: LikeTarget = { type: 'post', id: post.id };
 	const pubkey = getCurrentUser();
 
 	return {
 		post,
-		comments: getCommentsForPost(post.id, post.author),
+		comments: getCommentsForPost(post.id),
 		score: getScore(target),
 		ownVote: pubkey
 			? getOwnVotesForPosts([post.id], pubkey).then((votes) => votes.get(post.id) ?? null)

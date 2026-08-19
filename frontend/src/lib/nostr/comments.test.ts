@@ -10,9 +10,8 @@ import { publishPost } from './posts';
 import { postComment, deleteComment, getComment, getCommentsForPost, getCommentsAuthoredBy } from './comments';
 import { MAX_COMMENT_LENGTH } from '$lib/types';
 
-// $lib/db/deletedComments and $lib/db/deletedPosts (this file publishes
-// posts via posts.ts too) wrap idb-keyval, which needs a real IndexedDB
-// unavailable under plain Node/vitest — swap both for in-memory maps.
+// $lib/db/deletedComments wraps idb-keyval, which needs a real IndexedDB
+// unavailable under plain Node/vitest — swap it for an in-memory map.
 let deleteRequests: Record<string, number> = {};
 vi.mock('$lib/db/deletedComments', () => ({
 	loadDeleteRequestedMap: async () => deleteRequests,
@@ -21,10 +20,6 @@ vi.mock('$lib/db/deletedComments', () => ({
 		deleteRequests = { ...deleteRequests, [id]: timestamp };
 		return timestamp;
 	}
-}));
-vi.mock('$lib/db/deletedPosts', () => ({
-	loadPostDeleteRequestedMap: async () => ({}),
-	markPostDeleteRequested: async () => Date.now()
 }));
 
 let mainKeyring: ReturnType<typeof generateKeyring>;
@@ -40,17 +35,19 @@ beforeEach(() => {
 const oneImage = [{ url: 'https://blossom.example/abc.jpg' }];
 
 async function realPost() {
-	// content must be unique per call — see browse.test.ts's post() helper
-	// for why (id collision when two calls land in the same second).
+	// content must be unique per call — a NIP-01 event id hashes
+	// [pubkey, created_at, kind, tags, content], and calls made
+	// back-to-back can land in the same second, so identical content would
+	// produce colliding ids for what should be distinct posts.
 	return publishPost({ content: crypto.randomUUID(), images: oneImage, tags: [], rating: 'general' });
 }
 
 describe('postComment / getCommentsForPost', () => {
 	it('posts a comment and finds it via a relay filter', async () => {
 		const post = await realPost();
-		const comment = await postComment(post.id, post.author, 'Hello there');
+		const comment = await postComment(post.id, 'Hello there');
 
-		const comments = await getCommentsForPost(post.id, post.author);
+		const comments = await getCommentsForPost(post.id);
 		expect(comments).toHaveLength(1);
 		expect(comments[0].id).toBe(comment.id);
 		expect(comments[0].content).toBe('Hello there');
@@ -58,10 +55,10 @@ describe('postComment / getCommentsForPost', () => {
 
 	it('marks a deleted comment as deletion-requested rather than dropping it', async () => {
 		const post = await realPost();
-		const comment = await postComment(post.id, post.author, 'Will be deleted');
+		const comment = await postComment(post.id, 'Will be deleted');
 		await deleteComment(comment.id);
 
-		const comments = await getCommentsForPost(post.id, post.author);
+		const comments = await getCommentsForPost(post.id);
 		expect(comments).toHaveLength(1);
 		expect(comments[0].deleted).toBe(true);
 		expect(comments[0].deleted_at).not.toBeNull();
@@ -70,22 +67,32 @@ describe('postComment / getCommentsForPost', () => {
 	it("drops a comment event that doesn't actually match the requested post (never partially trusted)", async () => {
 		const post = await realPost();
 		const otherPost = await realPost();
-		await postComment(otherPost.id, otherPost.author, 'Belongs elsewhere');
+		await postComment(otherPost.id, 'Belongs elsewhere');
 
-		expect(await getCommentsForPost(post.id, post.author)).toEqual([]);
+		expect(await getCommentsForPost(post.id)).toEqual([]);
+	});
+
+	it('stays attached to the post across an edit (same coordinate)', async () => {
+		const post = await realPost();
+		const comment = await postComment(post.id, 'Before the edit');
+
+		await publishPost({ id: post.id, content: 'edited caption', images: oneImage, tags: ['new-tag'], rating: 'general' });
+
+		const comments = await getCommentsForPost(post.id);
+		expect(comments.map((c) => c.id)).toEqual([comment.id]);
 	});
 
 	it('posts a reply with parent_id set, alongside the top-level comment', async () => {
 		const post = await realPost();
-		const root = await postComment(post.id, post.author, 'Top-level');
+		const root = await postComment(post.id, 'Top-level');
 
 		__setKeyringForTests(generateKeyring());
-		const reply = await postComment(post.id, post.author, 'A reply', root.id);
+		const reply = await postComment(post.id, 'A reply', root.id);
 		__setKeyringForTests(generateKeyring());
 
 		expect(reply.parent_id).toBe(root.id);
 
-		const comments = await getCommentsForPost(post.id, post.author);
+		const comments = await getCommentsForPost(post.id);
 		expect(comments).toHaveLength(2);
 		expect(comments.find((c) => c.id === root.id)?.parent_id).toBeNull();
 		expect(comments.find((c) => c.id === reply.id)?.parent_id).toBe(root.id);
@@ -93,23 +100,21 @@ describe('postComment / getCommentsForPost', () => {
 
 	it('rejects replying to your own comment', async () => {
 		const post = await realPost();
-		const root = await postComment(post.id, post.author, 'Top-level');
+		const root = await postComment(post.id, 'Top-level');
 
-		await expect(postComment(post.id, post.author, 'Self-reply', root.id)).rejects.toThrow(
-			"Can't reply to your own comment."
-		);
+		await expect(postComment(post.id, 'Self-reply', root.id)).rejects.toThrow("Can't reply to your own comment.");
 	});
 
 	it('rejects a comment over the max length', async () => {
 		const post = await realPost();
-		await expect(postComment(post.id, post.author, 'a'.repeat(MAX_COMMENT_LENGTH + 1))).rejects.toThrow(
+		await expect(postComment(post.id, 'a'.repeat(MAX_COMMENT_LENGTH + 1))).rejects.toThrow(
 			`Comment exceeds the ${MAX_COMMENT_LENGTH} character limit.`
 		);
 	});
 
 	it('accepts a comment at exactly the max length', async () => {
 		const post = await realPost();
-		const comment = await postComment(post.id, post.author, 'a'.repeat(MAX_COMMENT_LENGTH));
+		const comment = await postComment(post.id, 'a'.repeat(MAX_COMMENT_LENGTH));
 		expect(comment.content).toHaveLength(MAX_COMMENT_LENGTH);
 	});
 });
@@ -122,12 +127,12 @@ describe('cross-relay-configuration visibility', () => {
 
 		__setPreferencesForTests({ nostrRelays: ['wss://commenter-only.example'] });
 		__setKeyringForTests(generateKeyring());
-		const comment = await postComment(post.id, post.author, 'From a differently-configured browser');
+		const comment = await postComment(post.id, 'From a differently-configured browser');
 
 		__setPreferencesForTests({ nostrRelays: ['wss://reader-only.example'] });
 		__setKeyringForTests(authorKeyring);
 
-		const comments = await getCommentsForPost(post.id, post.author);
+		const comments = await getCommentsForPost(post.id);
 		expect(comments.map((c) => c.id)).toContain(comment.id);
 	});
 });
@@ -135,7 +140,7 @@ describe('cross-relay-configuration visibility', () => {
 describe('deleteComment', () => {
 	it('rejects deletion from a non-author', async () => {
 		const post = await realPost();
-		const comment = await postComment(post.id, post.author, 'Mine');
+		const comment = await postComment(post.id, 'Mine');
 
 		__setKeyringForTests(generateKeyring());
 		await expect(deleteComment(comment.id)).rejects.toThrow('Only the author can delete this comment.');
@@ -143,7 +148,7 @@ describe('deleteComment', () => {
 
 	it('still resolves the comment via getComment afterward, marked deleted', async () => {
 		const post = await realPost();
-		const comment = await postComment(post.id, post.author, 'Bye');
+		const comment = await postComment(post.id, 'Bye');
 		await deleteComment(comment.id);
 
 		const fetched = await getComment(comment.id);
@@ -157,7 +162,7 @@ describe('getCommentsAuthoredBy', () => {
 		const keyring = generateKeyring();
 		__setKeyringForTests(keyring);
 		const post = await realPost();
-		const comment = await postComment(post.id, post.author, 'Mine, discoverable');
+		const comment = await postComment(post.id, 'Mine, discoverable');
 
 		const found = await getCommentsAuthoredBy(keyring.publicKey);
 		expect(found.map((c) => c.id)).toEqual([comment.id]);
@@ -167,7 +172,7 @@ describe('getCommentsAuthoredBy', () => {
 		const keyring = generateKeyring();
 		__setKeyringForTests(keyring);
 		const post = await realPost();
-		await postComment(post.id, post.author, 'Belongs to keyring');
+		await postComment(post.id, 'Belongs to keyring');
 
 		const otherKeyring = generateKeyring();
 		expect(await getCommentsAuthoredBy(otherKeyring.publicKey)).toEqual([]);

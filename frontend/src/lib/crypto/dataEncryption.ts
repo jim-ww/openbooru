@@ -21,7 +21,6 @@ const ALL_STORE_KEYS = [
 	'openbooru:keyring',
 	'openbooru:account-registered',
 	'openbooru:comment-delete-requests',
-	'openbooru:post-delete-requests',
 	'openbooru:own-profile',
 	'openbooru:preferences',
 	'openbooru:tag-index'
