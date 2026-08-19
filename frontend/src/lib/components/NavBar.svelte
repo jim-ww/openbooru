@@ -21,25 +21,23 @@
 </script>
 
 <header class="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
-	<div class="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4">
-		<a href={resolve('/')} class="flex shrink-0 items-center gap-2 font-bold tracking-tight">
+	<div class="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
+		<a href={resolve('/')} class="order-1 flex shrink-0 items-center gap-2 font-bold tracking-tight">
 			<span class="text-primary">open</span><span>booru</span>
 		</a>
 
-		<nav class="hidden shrink-0 items-center gap-1 sm:flex">
+		<nav class="order-2 flex shrink-0 items-center gap-1">
 			<Button href={resolve('/')} variant="ghost" size="sm" class="gap-1.5">
 				<House class="size-4" />
-				Home
+				<span class="hidden sm:inline">Home</span>
 			</Button>
 			<Button href={resolve('/upload')} variant="ghost" size="sm" class="gap-1.5">
 				<ImagePlus class="size-4" />
-				Upload
+				<span class="hidden sm:inline">Upload</span>
 			</Button>
 		</nav>
 
-		<SearchInput bind:value={query} onsubmit={submitSearch} placeholder="Search tags…" class="min-w-0 flex-1" />
-
-		<div class="flex shrink-0 items-center gap-1">
+		<div class="order-3 ml-auto flex shrink-0 items-center gap-1 sm:order-4 sm:ml-0">
 			<Button onclick={toggleMode} variant="ghost" size="icon" aria-label="Toggle theme">
 				<Sun class="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
 				<Moon class="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
@@ -56,5 +54,12 @@
 				</Button>
 			{/if}
 		</div>
+
+		<SearchInput
+			bind:value={query}
+			onsubmit={submitSearch}
+			placeholder="Search tags…"
+			class="order-4 w-full sm:order-3 sm:w-auto sm:min-w-0 sm:flex-1"
+		/>
 	</div>
 </header>
