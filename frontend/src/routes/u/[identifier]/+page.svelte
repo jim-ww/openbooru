@@ -7,6 +7,7 @@
 	import { Avatar, AvatarFallback, AvatarImage } from '$lib/components/ui/avatar';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { getScoresForPosts, type Score } from '$lib/nostr/reactions';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -29,7 +30,10 @@
 	});
 </script>
 
-<svelte:head><title>{displayName ?? npub} — openbooru</title></svelte:head>
+<SeoHead
+	title="{displayName ?? npub} — openbooru"
+	description="Posts by {displayName ?? npub} on openbooru, a decentralized Danbooru/Gelbooru-style imageboard."
+/>
 
 <div class="mx-auto max-w-7xl px-4 py-6">
 	<div class="mb-6 flex items-center gap-4">

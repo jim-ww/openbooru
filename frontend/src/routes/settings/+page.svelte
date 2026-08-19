@@ -6,6 +6,7 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Label } from '$lib/components/ui/label';
 	import KeyRound from '@lucide/svelte/icons/key-round';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 	import StringListEditor from '$lib/components/StringListEditor.svelte';
 	import { RATINGS, type Rating } from '$lib/types';
 	import { RATING_LABELS } from '$lib/ratingStyle';
@@ -89,7 +90,7 @@
 	}
 </script>
 
-<svelte:head><title>Settings — openbooru</title></svelte:head>
+<SeoHead title="Settings — openbooru" noindex />
 
 <div class="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-6">
 	<h1 class="text-xl font-bold">Settings</h1>

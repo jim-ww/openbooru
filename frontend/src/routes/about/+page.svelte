@@ -1,9 +1,13 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { externalLink } from '$lib/wails';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 </script>
 
-<svelte:head><title>About — openbooru</title></svelte:head>
+<SeoHead
+	title="About — openbooru"
+	description="How openbooru works: a decentralized, unmoderated, Danbooru/Gelbooru-style imageboard built on Nostr, with images on Blossom and no central server."
+/>
 
 <div class="mx-auto max-w-3xl px-6 py-16">
 	<h1 class="pb-8 text-3xl font-bold tracking-tight">About openbooru</h1>
@@ -12,7 +16,9 @@
 		<section>
 			<p>
 				openbooru is a decentralized, unmoderated imageboard — post images, tag them, search by tag, comment, and
-				vote, without a server standing between you and the network.
+				vote, without a server standing between you and the network. If you've used Danbooru or Gelbooru, the
+				tagging and browsing conventions will feel familiar — openbooru follows the same ideas, just without a
+				central server or moderators behind them.
 			</p>
 		</section>
 

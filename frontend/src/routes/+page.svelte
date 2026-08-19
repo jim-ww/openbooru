@@ -7,6 +7,7 @@
 	import { getScoresForPosts, type Score } from '$lib/nostr/reactions';
 	import { browseNetworkPage, type BrowseCursor } from '$lib/nostr/browse';
 	import { recordSeenTags } from '$lib/tags';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -49,7 +50,7 @@
 	}
 </script>
 
-<svelte:head><title>openbooru</title></svelte:head>
+<SeoHead title="openbooru — decentralized booru-style imageboard on Nostr" />
 
 <div class="mx-auto max-w-7xl px-4 py-6">
 	{#if !loaded}

@@ -6,6 +6,7 @@
 	import TagChip from '$lib/components/TagChip.svelte';
 	import { getScoresForPosts, type Score } from '$lib/nostr/reactions';
 	import { relatedTags, recordSeenTags, tagLabel } from '$lib/tags';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -26,7 +27,10 @@
 	});
 </script>
 
-<svelte:head><title>#{tagLabel(data.tag)} — openbooru</title></svelte:head>
+<SeoHead
+	title="#{tagLabel(data.tag)} — openbooru"
+	description="Browse posts tagged #{tagLabel(data.tag)} on openbooru, a decentralized Danbooru/Gelbooru-style imageboard."
+/>
 
 <div class="mx-auto max-w-7xl px-4 py-6">
 	<h1 class="mb-1 text-xl font-bold">#{tagLabel(data.tag)}</h1>

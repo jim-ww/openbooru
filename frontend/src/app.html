@@ -10,6 +10,44 @@
 		/>
 
 		<meta name="text-scale" content="scale" />
+
+		<!--
+			These are the tags a non-JS crawler or link-preview bot actually sees
+			— this is a client-only SPA (see +layout.ts, ssr = false), so nothing
+			server-rendered exists beyond this static shell. Individual routes
+			refine the title/description further once JS runs (see SeoHead.svelte),
+			for the browser tab and for crawlers that do execute JS (Googlebot).
+		-->
+		<title>openbooru — decentralized booru-style imageboard on Nostr</title>
+		<meta
+			name="description"
+			content="openbooru is a free, open-source, decentralized imageboard in the style of Danbooru and Gelbooru — post images, tag them, search by tag, comment, and vote. Built on Nostr: no account approval, no central server, no moderators."
+		/>
+		<link rel="canonical" href="https://jim-ww.github.io/openbooru/" />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="openbooru" />
+		<meta property="og:title" content="openbooru — decentralized booru-style imageboard on Nostr" />
+		<meta
+			property="og:description"
+			content="A free, decentralized imageboard in the style of Danbooru/Gelbooru — tag, search, comment, and vote, with no central server and no moderators."
+		/>
+		<meta property="og:url" content="https://jim-ww.github.io/openbooru/" />
+		<meta name="twitter:card" content="summary" />
+		<meta name="twitter:title" content="openbooru — decentralized booru-style imageboard on Nostr" />
+		<meta
+			name="twitter:description"
+			content="A free, decentralized imageboard in the style of Danbooru/Gelbooru — tag, search, comment, and vote, with no central server and no moderators."
+		/>
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@type": "WebSite",
+				"name": "openbooru",
+				"url": "https://jim-ww.github.io/openbooru/",
+				"description": "A free, open-source, decentralized imageboard in the style of Danbooru and Gelbooru, built on Nostr."
+			}
+		</script>
+
 		%sveltekit.head%
 	</head>
 

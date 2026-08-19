@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 </script>
 
-<svelte:head><title>Legal — openbooru</title></svelte:head>
+<SeoHead title="Legal — openbooru" description="openbooru's legal statement: software, not a service — no moderation, no warranty, and no liability for what users publish." />
 
 <div class="mx-auto max-w-3xl px-6 py-16">
 	<h1 class="pb-8 text-3xl font-bold tracking-tight">Legal</h1>

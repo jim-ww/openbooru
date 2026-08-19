@@ -6,6 +6,7 @@
 	import PostGrid from '$lib/components/PostGrid.svelte';
 	import PostGridSkeleton from '$lib/components/PostGridSkeleton.svelte';
 	import SearchInput from '$lib/components/SearchInput.svelte';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 	import { getScoresForPosts, type Score } from '$lib/nostr/reactions';
 	import { recordSeenTags } from '$lib/tags';
 
@@ -35,7 +36,7 @@
 	}
 </script>
 
-<svelte:head><title>Search — openbooru</title></svelte:head>
+<SeoHead title="Search — openbooru" noindex={!data.query.trim()} />
 
 <div class="mx-auto max-w-7xl px-4 py-6">
 	<SearchInput bind:value={query} onsubmit={submit} placeholder="e.g. outdoors -indoors rating:general" class="mb-2" />

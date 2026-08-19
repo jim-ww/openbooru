@@ -11,7 +11,8 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { deletePost, undeletePost } from '$lib/nostr/posts';
 	import { getCurrentUser } from '$lib/state/auth.svelte';
-	import { relatedTags, recordSeenTags } from '$lib/tags';
+	import { relatedTags, recordSeenTags, tagLabel } from '$lib/tags';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 	import { toast } from 'svelte-sonner';
 	import Trash from '@lucide/svelte/icons/trash-2';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -89,7 +90,10 @@
 	}
 </script>
 
-<svelte:head><title>Post — openbooru</title></svelte:head>
+<SeoHead
+	title={post.tags.length ? `${post.tags.slice(0, 3).map(tagLabel).join(', ')} — openbooru` : 'Post — openbooru'}
+	description={`A ${post.rating} post on openbooru${post.tags.length ? `, tagged ${post.tags.slice(0, 8).map(tagLabel).join(', ')}` : ''}.`}
+/>
 
 <div class="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[1fr_280px]">
 	<div class="flex flex-col gap-3">
