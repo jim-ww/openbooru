@@ -3,6 +3,7 @@
 	import type { PostId } from '$lib/types';
 	import { postComment, deleteComment } from '$lib/nostr/comments';
 	import { parsePostId } from '$lib/nostr/postId';
+	import { getProfile } from '$lib/nostr/profile';
 	import { getCurrentUser } from '$lib/state/auth.svelte';
 	import CommentComposer from './CommentComposer.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -13,6 +14,29 @@
 
 	let comments = $state([...initialComments]);
 	let replyingTo = $state<string | null>(null);
+	// Best-effort display-name lookup, keyed by author pubkey — a raw hex
+	// pubkey means nothing to a non-technical reader, so this shows a claimed
+	// username where one exists and falls back to the shortened pubkey.
+	let names = $state<Map<string, string>>(new Map());
+
+	$effect(() => {
+		const authors = [...new Set(comments.map((c) => c.author))].filter((a) => !names.has(a));
+		if (authors.length === 0) return;
+		void Promise.all(
+			authors.map(async (author) => {
+				const profile = await getProfile(author);
+				return profile.ok && profile.doc.username ? ([author, profile.doc.username] as const) : null;
+			})
+		).then((results) => {
+			const next = new Map(names);
+			for (const entry of results) if (entry) next.set(entry[0], entry[1]);
+			names = next;
+		});
+	});
+
+	function displayName(pubkey: string): string {
+		return names.get(pubkey) ?? shortPubkey(pubkey);
+	}
 
 	const roots = $derived(
 		comments.filter((c) => c.parent_id === null).sort((a, b) => a.created_at - b.created_at)
@@ -49,7 +73,7 @@
 {#snippet commentRow(comment: Comment, isReply: boolean)}
 	<div class="flex flex-col gap-1 {isReply ? 'ml-6 border-l border-border pl-3' : ''}">
 		<div class="flex items-center gap-2 text-xs text-muted-foreground">
-			<span class="font-medium text-foreground">{shortPubkey(comment.author)}</span>
+			<span class="font-medium text-foreground">{displayName(comment.author)}</span>
 			{#if comment.author === postAuthor}
 				<span class="rounded bg-primary/15 px-1 py-0.5 text-[10px] font-semibold text-primary uppercase">Author</span>
 			{/if}
