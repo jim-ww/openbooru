@@ -54,6 +54,11 @@
         pnpmDeps = pkgs.fetchPnpmDeps {
           inherit (finalAttrs) pname version src;
           fetcherVersion = 4;
+          # The .npmrc/package.json#pnpm minimumReleaseAge overrides don't
+          # reach whatever pnpm version this nixpkgs revision bundles for
+          # fetchPnpmDeps's own `pnpm install` — pass it as an actual CLI
+          # flag instead, which always wins over file-based config.
+          pnpmInstallFlags = ["--config.minimum-release-age=0"];
           # Placeholder — `nix build` will fail with the real hash to paste
           # in here on the first run (and again whenever pnpm-lock.yaml
           # changes).
