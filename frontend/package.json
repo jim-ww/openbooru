@@ -48,5 +48,8 @@
 	"dependencies": {
 		"idb-keyval": "^6.3.0",
 		"nostr-tools": "^2.24.2"
+	},
+	"pnpm": {
+		"minimumReleaseAge": 0
 	}
 }
