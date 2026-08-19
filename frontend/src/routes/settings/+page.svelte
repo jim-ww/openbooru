@@ -12,7 +12,7 @@
 	import { RATING_LABELS } from '$lib/ratingStyle';
 	import { getPreferences, updatePreferences } from '$lib/state/preferences.svelte';
 	import { getKeyring, getCurrentUser, isAccountRegistered, markRegistered, setKeyring, logout } from '$lib/state/auth.svelte';
-	import { publishProfile } from '$lib/nostr/profile';
+	import { publishProfile, getProfile } from '$lib/nostr/profile';
 	import { exportAccountBackup, parseAccountBackup } from '$lib/identity/backup';
 	import { setMode } from 'mode-watcher';
 	import { toast } from 'svelte-sonner';
@@ -60,10 +60,20 @@
 		}
 	}
 
-	function showBackup() {
+	let loadingBackup = $state(false);
+
+	async function showBackup() {
 		const keyring = getKeyring();
 		if (!keyring) return;
-		backupText = exportAccountBackup(keyring);
+		loadingBackup = true;
+		try {
+			// Include the published username/bio so restoring on a fresh browser
+			// doesn't come back nameless while waiting on a relay to serve it.
+			const profile = isAccountRegistered() ? await getProfile(keyring.publicKey) : null;
+			backupText = exportAccountBackup(keyring, profile?.ok ? profile.doc : undefined);
+		} finally {
+			loadingBackup = false;
+		}
 	}
 
 	async function copyBackup() {
@@ -128,7 +138,9 @@
 					</p>
 				</div>
 				<div class="flex flex-col gap-2">
-					<Button variant="outline" size="sm" class="self-start" onclick={showBackup}>Show my account key</Button>
+					<Button variant="outline" size="sm" class="self-start" onclick={showBackup} disabled={loadingBackup}>
+						{loadingBackup ? 'Loading…' : 'Show my account key'}
+					</Button>
 					{#if backupText}
 						<Textarea readonly value={backupText} rows={4} class="font-mono text-xs" />
 						<Button variant="outline" size="sm" class="self-start" onclick={copyBackup}>Copy to clipboard</Button>
