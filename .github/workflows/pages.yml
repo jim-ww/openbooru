@@ -1,0 +1,81 @@
+name: pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Compile Paraglide messages
+        working-directory: frontend
+        # src/lib/paraglide is gitignored and normally generated as a side
+        # effect of Vite starting (dev/build), but svelte-check/vitest run
+        # without Vite, so it needs compiling explicitly first.
+        run: pnpm exec paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide
+
+      - name: Type-check
+        working-directory: frontend
+        run: pnpm run check
+
+      - name: Test
+        working-directory: frontend
+        run: pnpm run test
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          BASE_PATH: /openbooru
+        run: pnpm run build
+
+      - name: Prepare Pages output
+        run: |
+          # GitHub Pages has no native SPA fallback — reusing the adapter's
+          # 200.html as 404.html makes any unmatched path (e.g. a direct
+          # load of /post/<id>) serve the app shell instead of a real 404.
+          cp frontend/dist/200.html frontend/dist/404.html
+          # Without this, GitHub Pages runs content through Jekyll, which
+          # ignores/breaks the _app directory (leading underscore).
+          touch frontend/dist/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

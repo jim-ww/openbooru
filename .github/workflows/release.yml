@@ -1,0 +1,125 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  # linux/amd64 and linux/arm64 (Wails' GTK3/webkitgtk backend needs cgo, so
+  # each builds natively on its own runner — see the Makefile's TARGETS
+  # comment), plus windows/amd64 and windows/arm64 cross-compiled from the
+  # amd64 leg (no cgo needed there). All packaging (tar.gz + binary renaming
+  # + README/license) is handled by `make build` itself — see the Makefile.
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: amd64
+            runner: ubuntu-latest
+            targets: "linux/amd64 windows/amd64 windows/arm64"
+          - id: arm64
+            runner: ubuntu-24.04-arm
+            targets: "linux/arm64"
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - run: make build TARGETS="${{ matrix.targets }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openbooru-archives-${{ matrix.id }}
+          path: dist/openbooru_*.tar.gz
+          retention-days: 1
+
+  # macOS can't join the `desktop` matrix above: it needs a real macOS host
+  # for its cgo WKWebView backend, and there's no Nix darwin builder in this
+  # setup (unlike Linux/Windows, which go through `make build`'s Nix flow) —
+  # so this builds and packages the tarball by hand instead of via the
+  # Makefile, mirroring its layout (binary + README + license).
+  desktop-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-13
+            goarch: amd64
+          - os: macos-14
+            goarch: arm64
+    runs-on: ${{ matrix.os }}
+    env:
+      APP_NAME: openbooru
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Build frontend
+        run: |
+          pnpm --dir frontend install --frozen-lockfile
+          pnpm --dir frontend exec paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide
+          pnpm --dir frontend run build
+
+      - name: Build
+        run: |
+          mkdir -p dist
+          workdir=$(mktemp -d)
+          CGO_ENABLED=1 GOOS=darwin GOARCH=${{ matrix.goarch }} \
+            go build -tags desktop,production -ldflags '-s -w' \
+            -o "$workdir/$APP_NAME" .
+          cp README.md LICENSE "$workdir/"
+          tar -C "$workdir" -czf "dist/${APP_NAME}_darwin_${{ matrix.goarch }}.tar.gz" \
+            "$APP_NAME" README.md LICENSE
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openbooru-archives-macos-${{ matrix.goarch }}
+          path: dist/openbooru_*.tar.gz
+          retention-days: 1
+
+  release:
+    needs: [desktop, desktop-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: openbooru-archives-*
+          path: dist
+          merge-multiple: true
+
+      # Regenerates the checksums file across every runner's archives (each
+      # `make build` above only covered its own leg) and writes the
+      # changelog goreleaser-release-notes style — see the Makefile.
+      - run: make checksums changelog
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: dist/changelog.txt
+          files: |
+            dist/openbooru_*.tar.gz
+            dist/openbooru_*_checksums.txt
