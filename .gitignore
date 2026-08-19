@@ -1,0 +1,18 @@
+# Node / frontend
+frontend/node_modules
+frontend/.svelte-kit
+frontend/dist
+frontend/src/lib/paraglide
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Go / Wails
+# frontend/bindings/ is intentionally NOT ignored — it's committed, same as
+# charshare, since the Nix package build has no network access to run
+# `wails3 generate bindings` itself.
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
