@@ -26,18 +26,21 @@
 			<span class="text-primary">open</span><span>booru</span>
 		</a>
 
-		<nav class="order-2 flex shrink-0 items-center gap-1">
+		<nav class="order-2 hidden shrink-0 items-center gap-1 sm:flex">
 			<Button href={resolve('/')} variant="ghost" size="sm" class="gap-1.5">
 				<House class="size-4" />
-				<span class="hidden sm:inline">Home</span>
+				Home
 			</Button>
 			<Button href={resolve('/upload')} variant="ghost" size="sm" class="gap-1.5">
 				<ImagePlus class="size-4" />
-				<span class="hidden sm:inline">Upload</span>
+				Upload
 			</Button>
 		</nav>
 
 		<div class="order-3 ml-auto flex shrink-0 items-center gap-1 sm:order-4 sm:ml-0">
+			<Button href={resolve('/upload')} variant="ghost" size="icon" aria-label="Upload" class="sm:hidden">
+				<ImagePlus class="size-4" />
+			</Button>
 			<Button onclick={toggleMode} variant="ghost" size="icon" aria-label="Toggle theme">
 				<Sun class="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
 				<Moon class="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
