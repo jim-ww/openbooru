@@ -79,9 +79,10 @@
         version = "0.1.0";
         src = ./.;
 
-        # Placeholder — `nix build` will fail with the real hash to paste in
-        # here on the first run (and again whenever go.mod/go.sum change).
-        vendorHash = pkgs.lib.fakeHash;
+        # Resolved from a real `nix build` run's hash-mismatch error (see
+        # .github/workflows/nix.yml) — needs updating again whenever go.mod/
+        # go.sum change.
+        vendorHash = "sha256-hP8M9yoEo0nU+Pxse6W3k/DSv3DCtEQzUlG/XPKOKNo=";
 
         # `go mod vendor` (buildGoModule's default) unconditionally resolves
         # every dependency's go:embed patterns for every GOOS/GOARCH, and
