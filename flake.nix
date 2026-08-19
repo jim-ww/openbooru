@@ -59,10 +59,10 @@
           # fetchPnpmDeps's own `pnpm install` — pass it as an actual CLI
           # flag instead, which always wins over file-based config.
           pnpmInstallFlags = ["--config.minimum-release-age=0"];
-          # Placeholder — `nix build` will fail with the real hash to paste
-          # in here on the first run (and again whenever pnpm-lock.yaml
-          # changes).
-          hash = pkgs.lib.fakeHash;
+          # Resolved from a real `nix build` run's hash-mismatch error (see
+          # .github/workflows/nix.yml) — needs updating again whenever
+          # pnpm-lock.yaml changes.
+          hash = "sha256-PPS0y53ZJXeyQ6GlVyqY5dBMaknEkQ4HcTlW875qIzU=";
         };
 
         buildPhase = ''
