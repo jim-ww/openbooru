@@ -11,4 +11,7 @@ export interface Preferences {
 	visibleRatings: Rating[];
 	theme: 'system' | 'light' | 'dark';
 	gridDensity: 'small' | 'large';
+	// Whether the user dismissed the "back up your account key" banner —
+	// dismissing is permanent, it doesn't mean they actually backed up.
+	backupReminderDismissed: boolean;
 }

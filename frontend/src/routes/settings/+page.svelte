@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Label } from '$lib/components/ui/label';
+	import KeyRound from '@lucide/svelte/icons/key-round';
 	import StringListEditor from '$lib/components/StringListEditor.svelte';
 	import { RATINGS, type Rating } from '$lib/types';
 	import { RATING_LABELS } from '$lib/ratingStyle';
@@ -115,23 +116,40 @@
 				</div>
 			{/if}
 
-			<div class="flex flex-col gap-2">
-				<Button variant="outline" size="sm" class="self-start" onclick={showBackup}>Show account backup</Button>
-				{#if backupText}
-					<Textarea readonly value={backupText} rows={4} class="font-mono text-xs" />
-					<Button variant="outline" size="sm" class="self-start" onclick={copyBackup}>Copy</Button>
-				{/if}
+			<div class="flex flex-col gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+				<div class="flex items-start gap-2">
+					<KeyRound class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+					<p class="text-sm">
+						<strong>This key is your entire account</strong> — there's no username-and-password login to fall back on. It
+						works like a login and password combined into one secret. Anyone who has it can post as you; if you lose
+						it, it cannot be reset or recovered, by us or anyone else. Copy it now and keep it somewhere safe (a
+						password manager is ideal).
+					</p>
+				</div>
+				<div class="flex flex-col gap-2">
+					<Button variant="outline" size="sm" class="self-start" onclick={showBackup}>Show my account key</Button>
+					{#if backupText}
+						<Textarea readonly value={backupText} rows={4} class="font-mono text-xs" />
+						<Button variant="outline" size="sm" class="self-start" onclick={copyBackup}>Copy to clipboard</Button>
+					{/if}
+				</div>
 			</div>
 
 			<div class="flex flex-col gap-2">
-				<Label for="restore">Restore from backup (nsec or JSON)</Label>
-				<Textarea id="restore" bind:value={restoreText} rows={2} class="font-mono text-xs" />
+				<Label for="restore">Already have an account? Paste its key here to use it on this device</Label>
+				<Textarea id="restore" bind:value={restoreText} rows={2} class="font-mono text-xs" placeholder="nsec1… or a full backup JSON" />
 				<Button variant="outline" size="sm" class="self-start" onclick={restoreBackup} disabled={!restoreText.trim()}>
-					Restore
+					Switch to this account
 				</Button>
 			</div>
 
-			<Button variant="destructive" size="sm" class="self-start" onclick={handleLogout}>Switch to new identity</Button>
+			<div class="flex flex-col gap-1">
+				<Button variant="destructive" size="sm" class="self-start" onclick={handleLogout}>Switch to new identity</Button>
+				<p class="text-xs text-muted-foreground">
+					Replaces your current key with a brand new one on this device. Make sure you've backed up the current key
+					first — this can't be undone.
+				</p>
+			</div>
 		</CardContent>
 	</Card>
 

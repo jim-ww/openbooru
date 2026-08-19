@@ -15,7 +15,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
 	hiddenCommentIds: [],
 	visibleRatings: ['general', 'sensitive'],
 	theme: 'system',
-	gridDensity: 'small'
+	gridDensity: 'small',
+	backupReminderDismissed: false
 };
 
 let preferences = $state<Preferences>(DEFAULT_PREFERENCES);
@@ -71,7 +72,8 @@ export function initPreferences(): Promise<void> {
 					...stored,
 					blossomServers: stored.blossomServers ?? DEFAULT_BLOSSOM_SERVERS,
 					visibleRatings: stored.visibleRatings ?? ['general', 'sensitive'],
-					gridDensity: stored.gridDensity ?? 'small'
+					gridDensity: stored.gridDensity ?? 'small',
+					backupReminderDismissed: stored.backupReminderDismissed ?? false
 				};
 			}
 			ready = true;

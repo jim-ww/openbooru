@@ -7,6 +7,7 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import NavBar from '$lib/components/NavBar.svelte';
+	import BackupReminder from '$lib/components/BackupReminder.svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import { installWailsConsoleForward } from '$lib/wailsConsoleForward';
 	import '../app.css';
@@ -25,6 +26,7 @@
 
 <div class="flex min-h-screen flex-col">
 	<NavBar />
+	<BackupReminder />
 	<main class="flex-1">
 		{@render children()}
 	</main>
