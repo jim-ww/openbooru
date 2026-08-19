@@ -5,8 +5,7 @@
 	import { resolve } from '$app/paths';
 	import PostGrid from '$lib/components/PostGrid.svelte';
 	import PostGridSkeleton from '$lib/components/PostGridSkeleton.svelte';
-	import { Input } from '$lib/components/ui/input';
-	import { Button } from '$lib/components/ui/button';
+	import SearchInput from '$lib/components/SearchInput.svelte';
 	import { getScoresForPosts, type Score } from '$lib/nostr/reactions';
 	import { recordSeenTags } from '$lib/tags';
 
@@ -31,27 +30,24 @@
 		});
 	});
 
-	function submit(event: SubmitEvent) {
-		event.preventDefault();
-		void goto(resolve('/search') + `?q=${encodeURIComponent(query.trim())}`);
+	function submit(trimmed: string) {
+		void goto(resolve('/search') + `?q=${encodeURIComponent(trimmed)}`);
 	}
 </script>
 
 <svelte:head><title>Search — openbooru</title></svelte:head>
 
 <div class="mx-auto max-w-7xl px-4 py-6">
-	<form onsubmit={submit} class="mb-2 flex gap-2">
-		<Input bind:value={query} placeholder="tags, -exclude, rating:general, order:score" />
-		<Button type="submit">Search</Button>
-	</form>
+	<SearchInput bind:value={query} onsubmit={submit} placeholder="e.g. outdoors -indoors rating:general" class="mb-2" />
 	<p class="mb-4 text-xs text-muted-foreground">
+		The simplest way to search is to just click a tag anywhere in the site — this box is for combining several at once.
 		Space-separated tags are combined with AND. Use <code>-tag</code> to exclude,
 		<code>rating:general|sensitive|explicit</code>
 		to filter by rating, and <code>order:score|new</code> to sort.
 	</p>
 
 	{#if !data.query.trim()}
-		<p class="py-16 text-center text-sm text-muted-foreground">Enter a search above to get started.</p>
+		<p class="py-16 text-center text-sm text-muted-foreground">Enter a search above, or click any tag to browse it directly.</p>
 	{:else if !loaded}
 		<PostGridSkeleton />
 	{:else}

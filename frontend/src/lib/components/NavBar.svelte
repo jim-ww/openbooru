@@ -2,7 +2,6 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import House from '@lucide/svelte/icons/house';
-	import Search from '@lucide/svelte/icons/search';
 	import ImagePlus from '@lucide/svelte/icons/image-plus';
 	import Settings from '@lucide/svelte/icons/settings';
 	import Info from '@lucide/svelte/icons/info';
@@ -10,14 +9,12 @@
 	import Sun from '@lucide/svelte/icons/sun';
 	import { toggleMode } from 'mode-watcher';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
+	import SearchInput from '$lib/components/SearchInput.svelte';
 	import { getCurrentUser } from '$lib/state/auth.svelte';
 
 	let query = $state('');
 
-	function submitSearch(event: SubmitEvent) {
-		event.preventDefault();
-		const trimmed = query.trim();
+	function submitSearch(trimmed: string) {
 		if (!trimmed) return;
 		void goto(resolve('/search') + `?q=${encodeURIComponent(trimmed)}`);
 	}
@@ -40,17 +37,7 @@
 			</Button>
 		</nav>
 
-		<form onsubmit={submitSearch} class="flex min-w-0 flex-1 items-center">
-			<div class="relative w-full">
-				<Search class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					type="search"
-					placeholder="tags, -exclude, rating:general, order:score"
-					bind:value={query}
-					class="h-9 pl-8"
-				/>
-			</div>
-		</form>
+		<SearchInput bind:value={query} onsubmit={submitSearch} placeholder="Search tags…" class="min-w-0 flex-1" />
 
 		<div class="flex shrink-0 items-center gap-1">
 			<Button onclick={toggleMode} variant="ghost" size="icon" aria-label="Toggle theme">
