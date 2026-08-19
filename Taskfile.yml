@@ -1,0 +1,47 @@
+# Only used by `wails3 dev` for local hot-reload development (see the
+# Makefile's `dev` target and build/config.yml). Production builds never
+# invoke the Wails CLI directly — see the Makefile and flake.nix.
+version: '3'
+
+vars:
+  # Must match what `wails3 dev` itself waits on (its -port flag, default
+  # 9245) — plain `pnpm run dev` defaults Vite to 5173 instead.
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+  APP_NAME: openbooru
+  BIN_DIR: bin
+  APP_ID: io.github.jim_ww.openbooru
+
+tasks:
+  common:dev:frontend:
+    summary: Starts the frontend Vite dev server
+    dir: frontend
+    cmds:
+      # --host 127.0.0.1: without it, Vite binds bare "localhost", which can
+      # resolve/bind IPv6-only (::1). Wails' own internal asset proxy dials
+      # 127.0.0.1 IPv4-only when the dev server URL's host is
+      # localhost/127.0.0.1, so an IPv6-only Vite gets "connection refused"
+      # from Wails even though curl/browsers hitting "localhost" succeed.
+      - pnpm run dev --port {{.VITE_PORT}} --strictPort --host 127.0.0.1
+
+  common:dev:frontend:wait:
+    summary: Blocks until the Vite dev server is actually answering requests
+    cmds:
+      - |
+        for i in $(seq 1 60); do
+          if curl -sf -o /dev/null "http://127.0.0.1:{{.VITE_PORT}}"; then
+            exit 0
+          fi
+          sleep 0.5
+        done
+        echo "Vite dev server never came up on port {{.VITE_PORT}}" >&2
+        exit 1
+
+  build:
+    summary: Builds the application binary for local dev/testing
+    cmds:
+      - go build -tags "desktop gtk3" -o bin/openbooru .
+
+  run:
+    summary: Runs the built application binary
+    cmds:
+      - ./bin/openbooru

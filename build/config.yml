@@ -1,0 +1,47 @@
+# Config for `wails3 dev`/`wails3 build` — used for local development only.
+# Production builds go through the Makefile + Nix instead (see flake.nix),
+# which never invoke the Wails CLI, so nothing here affects what ships.
+version: '3'
+
+info:
+  companyName: "jim-ww"
+  productName: "openbooru"
+  productIdentifier: "io.github.jim_ww.openbooru"
+  description: "Decentralized, unmoderated imageboard on Nostr"
+  copyright: ""
+  comments: ""
+  version: "0.0.1"
+
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir:
+      - .git
+      - node_modules
+      - frontend
+      - bin
+      - dist
+    file:
+      - .DS_Store
+      - .gitignore
+      - .gitkeep
+      - "*_test.go"
+    watched_extension:
+      - "*.go"
+    git_ignore: true
+  executes:
+    - cmd: go build -tags "desktop gtk3" -o bin/openbooru-dev .
+      type: blocking
+    - cmd: wails3 task common:dev:frontend
+      type: background
+    # wails3's own "is the frontend dev server up yet" check is hardcoded to
+    # 10 retries * 500ms = 5s total and isn't configurable — svelte-kit sync
+    # + a cold Vite start routinely takes longer than that, so the binary
+    # launches straight into a fatal "unable to connect to frontend server"
+    # without this blocking wait first.
+    - cmd: wails3 task common:dev:frontend:wait
+      type: blocking
+    - cmd: ./bin/openbooru-dev
+      type: primary
